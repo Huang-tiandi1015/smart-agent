@@ -1,6 +1,6 @@
 # 开发进度记录
 
-> 更新：2026-08-05（里程碑 3：接入 LLM 意图解析，默认 DeepSeek）
+> 更新：2026-08-05（里程碑 4：任务持久化 + 安全强化 + 取消/并发 + pytest）
 
 ## 当前状态
 
@@ -32,7 +32,34 @@
 - 端到端测试 `scripts/milestone3_demo.py`：场景A 自然语言整理指令→审批→归档；场景B 超能力
   指令→done+非空回复且不误调工具。复用 milestone2_demo 的 DemoClient。
 - 验证结果：rules 模式 15/15 通过；无 key auto 模式 15/15 通过（证明回退生效），服务端日志无
-  warning/error。**LLM 真路径验证待用户把 DeepSeek key 填入 .env 后运行 milestone3_demo.py**。
+  warning/error。**LLM 真路径已由用户提供 DeepSeek key 后验证通过（milestone3_demo 9/9）**。
+
+**里程碑 4（持久化 + 安全强化 + 取消/并发 + pytest）已完成并全量验证**：
+
+- **持久化**：新增 `server/app/core/store.py`（stdlib sqlite3，零新依赖）落盘四类数据
+  （jobs / audit / approval_trust / tokens），每次操作独立开连接 + WAL + busy_timeout。
+  任务状态、审计、审批信任、token 重启不丢；`main.py` 装配 Store，lifespan 启动时
+  `auth.restore()` + `job_manager.restore()`（非终态任务标记为「服务重启，任务中断」→ failed），
+  关闭时 `job_manager.shutdown()` 优雅取消后台任务。
+- **安全强化**：
+  - `RiskLevel.DANGEROUS` 完整接线：危险工具**必须**审批，1h 信任不豁免；
+    `handle_approval` 里 trust="1h" 仅对非 DANGEROUS 工具写信任缓存。
+  - 新增 `server/app/safety/classifier.py` 目录黑名单（Windows 系统目录前缀 + 盘符根目录正则），
+    在工具执行前硬拦截（`_process` 中 `tool.plan` 之后、审批之前调用 `check_tool`），
+    即使手机端批准也直接拒绝，错误信息含「安全拦截」。
+  - token 轮换：`POST /api/rotate`（旧 token 换新，旧 token 立即失效，落库）。
+- **取消与并发**：新增 `cancel` 协议消息，仅任务发起设备可取消 created/parsing/awaiting_approval
+  状态任务（新终态 `cancelled`）；`_execute` 用 `asyncio.Semaphore` 限流工具执行
+  （`SMART_AGENT_MAX_CONCURRENT`，默认 3）；`_spawn` 统一追踪后台任务以便 shutdown。
+- **前端**：`static/app.js` 增加 `cancelled` 状态文案、审批弹窗「取消」按钮、连接后自动
+  `get_recent` 拉历史并去重渲染；`index.html` 加 `apCancel` 按钮。
+- **测试**：新增 `server/tests/` pytest 套件（conftest 强制 rules 规划器、FakeHub 假连接），
+  41 项全绿，覆盖状态机（批准/拒绝/帮助/空目录/未知）、1h 信任与 DANGEROUS 不豁免、
+  取消、黑名单拦截、重启恢复、store 落盘往返、approval 记忆、工具行为、分类器、规则规划器。
+  pytest 期间发现并修复 `restore()` 未把中断任务置为 failed 的 bug。
+- 端到端验证：rules 回归 milestone2_demo 15/15；milestone4_demo 9/9（黑名单/取消/recent）；
+  重启后 `get_recent` 历史完整保留；`/api/rotate` 旧 token 失效 401；LLM 路径 milestone3_demo 9/9；
+  各服务端日志 0 warning/error。
 
 ## 本次收官发现的 bug（均已修复）
 
@@ -69,17 +96,21 @@ SMART_AGENT_DESKTOP_DIR="D:/Claude Code/smart-agent/.sandbox_demo/desktop" \
 .venv/Scripts/python scripts/milestone2_demo.py --code <配对码> --sandbox "D:/Claude Code/smart-agent/.sandbox_demo"
 # 里程碑 3：LLM 路径（需 .env 填好 key）
 .venv/Scripts/python scripts/milestone3_demo.py --code <配对码> --sandbox "D:/Claude Code/smart-agent/.sandbox_demo"
+# 里程碑 4：黑名单/取消/recent（沙箱起服务同上）
+.venv/Scripts/python scripts/milestone4_demo.py --code <配对码> --sandbox "D:/Claude Code/smart-agent/.sandbox_demo"
 # 强制规则模式回归：起服务前加 SMART_AGENT_PLANNER=rules
+# pytest 单元测试
+.venv/Scripts/python -m pytest -q
 ```
-`.sandbox_demo/` 已加入 .gitignore。
+`.sandbox_demo/`、`data/` 已加入 .gitignore。
 
-## 下一步（里程碑 4）
+## 下一步（里程碑 5）
 
-- 任务持久化 / 恢复（内存 → SQLite）
-- 危险操作黑白名单、pytest 单元测试覆盖
-- 手机端 PWA 审批交互与状态展示打磨
+- Windows 开机自启（注册表/计划任务）
+- 中继服务器兜底通道（手机无法装 Tailscale 时）
+- 前端审批交互与状态展示打磨（当前已支持取消）
 
-## 里程碑 3 待办（需用户 key）
+## 里程碑 3 待办（已完成）
 
-- 在 `.env` 填入 `DEEPSEEK_API_KEY`（platform.deepseek.com 注册充值），auto 模式起服务 →
-  跑 `scripts/milestone3_demo.py` 验证 LLM 真路径（场景A/B），再跑 `milestone2_demo.py` 做 LLM 下回归
+- DeepSeek key 已填入 `.env`；LLM 真路径验证通过（milestone3_demo 9/9），
+  milestone2_demo 15/15 在 LLM 下回归通过。

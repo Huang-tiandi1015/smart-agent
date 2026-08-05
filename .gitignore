@@ -19,6 +19,9 @@ dist/
 logs/
 *.log
 
+# 数据库
+data/
+
 # 沙箱测试产物
 .sandbox_demo/
 

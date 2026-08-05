@@ -65,6 +65,12 @@ LLM_TIMEOUT = float(os.getenv("SMART_AGENT_LLM_TIMEOUT", "30"))
 # 规划器模式：auto（有 key 则走 LLM）/ llm（强制 LLM）/ rules（强制规则）
 PLANNER_MODE = os.getenv("SMART_AGENT_PLANNER", "auto")
 
+# ---- 里程碑 4：持久化与并发 ----
+# SQLite 数据库路径（jobs/审计/审批信任/token 落盘）
+DB_PATH = os.getenv("SMART_AGENT_DB_PATH", str(PROJECT_ROOT / "data" / "smart-agent.db"))
+# 工具执行并发上限（超出排队等待）
+MAX_CONCURRENT = int(os.getenv("SMART_AGENT_MAX_CONCURRENT", "3"))
+
 
 def _default_desktop() -> str:
     home = Path.home()

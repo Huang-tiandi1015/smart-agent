@@ -32,6 +32,7 @@
     $("cmdInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCommand(); });
     $("apApprove").addEventListener("click", approve);
     $("apDeny").addEventListener("click", deny);
+    $("apCancel").addEventListener("click", cancelJob);
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -121,6 +122,10 @@
       case "authed":
         setStatus("online", "已连接");
         logLine("info", `认证成功（设备 ${msg.device_id.slice(0, 8)}…）`);
+        send({ type: "get_recent" });
+        break;
+      case "recent":
+        renderRecent(msg.jobs || []);
         break;
       case "echo_reply":
         logLine("received", `回复: ${msg.text}`);
@@ -166,18 +171,35 @@
     executing: "执行中",
     done: "已完成",
     failed: "失败",
+    cancelled: "已取消",
   };
 
+  const loggedJobIds = new Set(); // 已在日志中出现过的任务，recent 渲染时跳过
+
   function onJobStatus(msg) {
+    loggedJobIds.add(msg.job_id);
     const label = STATUS_TEXT[msg.status] || msg.status;
     const extra = msg.status === "done" ? formatResult(msg.result) : (msg.error || "");
     const line = `#${msg.job_id} ${label}${extra ? " — " + extra : ""}`;
-    const kind = msg.status === "done" ? "sent" : (msg.status === "failed" || msg.status === "rejected" ? "error" : "info");
+    const kind = msg.status === "done" ? "sent" : (["failed", "rejected", "cancelled"].includes(msg.status) ? "error" : "info");
     logLine(kind, line);
 
-    if (["done", "failed", "rejected"].includes(msg.status) && pendingApproval && pendingApproval.jobId === msg.job_id) {
+    if (["done", "failed", "rejected", "cancelled"].includes(msg.status) && pendingApproval && pendingApproval.jobId === msg.job_id) {
       hideApproval();
     }
+  }
+
+  function renderRecent(jobs) {
+    const fresh = jobs.filter((j) => !loggedJobIds.has(j.job_id));
+    if (!fresh.length) return;
+    logLine("info", `—— 最近 ${fresh.length} 条历史任务 ——`);
+    fresh.forEach((j) => {
+      loggedJobIds.add(j.job_id);
+      const label = STATUS_TEXT[j.status] || j.status;
+      const extra = j.status === "done" ? formatResult(j.result) : (j.error || "");
+      const line = `#${j.job_id} ${label}${extra ? " — " + extra : ""}`;
+      logLine(j.status === "done" ? "sent" : "info", line);
+    });
   }
 
   function formatResult(result) {
@@ -220,6 +242,13 @@
     if (!pendingApproval) return;
     send({ type: "approval_response", job_id: pendingApproval.jobId, decision: "deny" });
     logLine("info", "已拒绝");
+    hideApproval();
+  }
+
+  function cancelJob() {
+    if (!pendingApproval) return;
+    send({ type: "cancel", job_id: pendingApproval.jobId });
+    logLine("info", "已取消任务");
     hideApproval();
   }
 

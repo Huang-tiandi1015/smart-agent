@@ -18,6 +18,7 @@ from .api import routes, ws
 from .core.auth import AuthManager
 from .core.hub import ConnectionHub
 from .core.jobs import JobManager
+from .core.store import Store
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,9 +26,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("smart-agent")
 
-auth = AuthManager(code_ttl=config.PAIR_CODE_TTL, token_ttl=config.TOKEN_TTL)
+store = Store(config.DB_PATH)
+auth = AuthManager(code_ttl=config.PAIR_CODE_TTL, token_ttl=config.TOKEN_TTL, store=store)
 hub = ConnectionHub()
-job_manager = JobManager(hub=hub, approval_ttl=config.APPROVAL_TTL)
+job_manager = JobManager(hub=hub, approval_ttl=config.APPROVAL_TTL, store=store)
 
 
 @asynccontextmanager
@@ -39,7 +41,11 @@ async def lifespan(app: FastAPI):
                 code, int(config.PAIR_CODE_TTL / 60), 3)
     logger.info("手机端访问 http://<本机地址>:%d 后，在页面输入该配对码完成绑定", config.PORT)
     logger.info("=" * 56)
+    # 恢复持久化数据：未过期 token、审批信任、任务历史（非终态标记为中断）
+    auth.restore()
+    job_manager.restore()
     yield
+    await job_manager.shutdown()
 
 
 def create_app() -> FastAPI:

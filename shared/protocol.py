@@ -14,6 +14,8 @@ MSG_ECHO = "echo"                       # 连通性测试
 MSG_PONG = "pong"                       # 心跳回复
 MSG_COMMAND = "command"                 # 远程指令：{"text": "..."}
 MSG_APPROVAL_RESPONSE = "approval_response"  # 审批决定：{"job_id","decision","trust"}
+MSG_CANCEL = "cancel"                   # 取消待审批/排队任务：{"job_id"}
+MSG_GET_RECENT = "get_recent"           # 请求最近任务历史（重连后拉取）
 
 # ---- 服务端 -> 客户端 ----
 MSG_AUTHED = "authed"                   # 认证成功
@@ -21,6 +23,7 @@ MSG_ECHO_REPLY = "echo_reply"           # echo 回复
 MSG_PING = "ping"                       # 心跳
 MSG_JOB_STATUS = "job_status"           # 任务状态推送
 MSG_APPROVAL_REQUEST = "approval_request"  # 审批请求：{"job_id","text","risk","summary","details","ttl"}
+MSG_RECENT = "recent"                   # 最近任务历史：{"jobs":[{"job_id","status","text","tool_name","error","result","created_at"}]}
 MSG_ERROR = "error"                     # 错误
 
 

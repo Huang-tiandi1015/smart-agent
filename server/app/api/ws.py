@@ -139,5 +139,12 @@ async def _handle_message(
         )
         if not ok:
             await ws.send_json(p.make_message(p.MSG_ERROR, code="bad_approval", message="审批响应无效或任务不在审批中"))
+    elif mtype == p.MSG_CANCEL:
+        ok = await job_manager.cancel(device_id, str(msg.get("job_id", "")))
+        if not ok:
+            await ws.send_json(p.make_message(p.MSG_ERROR, code="bad_cancel", message="任务不存在或不可取消"))
+    elif mtype == p.MSG_GET_RECENT:
+        jobs = job_manager.recent(20)
+        await ws.send_json(p.make_message(p.MSG_RECENT, jobs=jobs))
     else:
         await ws.send_json(p.make_message(p.MSG_ERROR, code="unknown_type", message=f"未知消息类型: {mtype}"))

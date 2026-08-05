@@ -1,8 +1,8 @@
-"""认证：配对码换长期 token。
+"""认证：配对码换长期 token，支持 token 轮换。
 
 流程：服务端启动时生成一次性配对码并打印到控制台 -> 手机端输入配对码 + 设备名
 调用 POST /api/pair -> 换取长期 token -> 后续 WebSocket 连接携带该 token。
-MVP 阶段 token 保存在内存中；里程碑 4 再落库并支持 token 轮换。
+里程碑 4：token 落 SQLite（重启不失效）+ POST /api/rotate 轮换。
 """
 from __future__ import annotations
 
@@ -30,9 +30,10 @@ class Token:
 
 
 class AuthManager:
-    def __init__(self, code_ttl: float, token_ttl: int) -> None:
+    def __init__(self, code_ttl: float, token_ttl: int, store=None) -> None:
         self._code_ttl = code_ttl
         self._token_ttl = token_ttl
+        self._store = store
         self._pair_codes: dict[str, PairCode] = {}
         self._tokens: dict[str, Token] = {}
 
@@ -52,14 +53,31 @@ class AuthManager:
         pc.used += 1
         if pc.used >= pc.max_uses:
             del self._pair_codes[code]
-        token = Token(
+        token = self._new_token(device_id)
+        self._tokens[token.token] = token
+        if self._store:
+            self._store.save_token(token)
+        return token
+
+    def rotate(self, token: str) -> Token | None:
+        """用旧 token 换新 token；旧 token 立即失效。失败返回 None。"""
+        old = self.validate(token)
+        if old is None:
+            return None
+        new = self._new_token(old.device_id)
+        self._tokens[new.token] = new
+        if self._store:
+            self._store.save_token(new)
+        self.revoke(old.token)
+        return new
+
+    def _new_token(self, device_id: str) -> Token:
+        return Token(
             token=secrets.token_urlsafe(32),
             device_id=device_id,
             created_at=time.time(),
             expires_at=(time.time() + self._token_ttl) if self._token_ttl > 0 else 0,
         )
-        self._tokens[token.token] = token
-        return token
 
     def validate(self, token: str) -> Token | None:
         """校验 token 是否有效，返回对应 Token；失效则移除。"""
@@ -68,11 +86,28 @@ class AuthManager:
             return None
         if tok.expires_at and time.time() > tok.expires_at:
             del self._tokens[token]
+            if self._store:
+                self._store.delete_token(token)
             return None
         return tok
 
     def revoke(self, token: str) -> None:
         self._tokens.pop(token, None)
+        if self._store:
+            self._store.delete_token(token)
+
+    def restore(self) -> None:
+        """从 store 加载未过期 token（启动时调用）。"""
+        if not self._store:
+            return
+        now = time.time()
+        for token, device_id, created_at, expires_at in self._store.load_tokens():
+            if expires_at and now > expires_at:
+                self._store.delete_token(token)
+                continue
+            self._tokens[token] = Token(
+                token=token, device_id=device_id, created_at=created_at, expires_at=expires_at
+            )
 
     def _cleanup(self) -> None:
         now = time.time()
