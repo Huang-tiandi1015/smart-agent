@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Smart Agent</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Smart Agent</h1>
+    <span id="status" class="status status--offline">未连接</span>
+  </header>
+
+  <main class="panel">
+    <!-- 连接配置 -->
+    <section class="card">
+      <h2>连接</h2>
+      <div class="row">
+        <label>服务器地址</label>
+        <input id="server" readonly>
+      </div>
+      <div class="row">
+        <label>设备名</label>
+        <input id="deviceName" placeholder="例如 我的手机" maxlength="24">
+      </div>
+    </section>
+
+    <!-- 配对 -->
+    <section class="card" id="pairCard">
+      <h2>配对</h2>
+      <p class="hint">在电脑端控制台查看配对码，输入后完成绑定。</p>
+      <div class="row">
+        <label>配对码</label>
+        <input id="pairCode" inputmode="numeric" placeholder="6 位数字" maxlength="6">
+      </div>
+      <button id="btnBind" class="btn btn--primary">绑定</button>
+    </section>
+
+    <!-- 指令 -->
+    <section class="card" id="cmdCard" hidden>
+      <h2>指令</h2>
+      <div class="row">
+        <input id="cmdInput" placeholder="例如：整理桌面文件">
+        <button id="btnSend" class="btn btn--primary">发送</button>
+      </div>
+      <p class="hint">支持：整理桌面文件 / 整理 &lt;目录路径&gt;。发送「帮助」查看全部。</p>
+      <button id="btnUnbind" class="btn btn--danger">解除绑定</button>
+    </section>
+
+    <!-- 任务记录 -->
+    <section class="card" id="logCard" hidden>
+      <h2>任务记录</h2>
+      <ul id="log" class="log"></ul>
+    </section>
+  </main>
+
+  <!-- 审批弹窗 -->
+  <div id="approvalModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>需你确认</h2>
+      <p id="apText" class="ap-text"></p>
+      <p id="apSummary" class="ap-summary"></p>
+      <ul id="apDetails" class="ap-details"></ul>
+      <div class="ap-trust">
+        <label><input type="radio" name="trust" value="once" checked> 仅本次</label>
+        <label><input type="radio" name="trust" value="1h"> 1 小时内信任</label>
+      </div>
+      <div class="ap-buttons">
+        <button id="apDeny" class="btn btn--danger">拒绝</button>
+        <button id="apApprove" class="btn btn--primary">批准执行</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

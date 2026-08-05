@@ -1,0 +1,9 @@
+{
+  "name": "Smart Agent",
+  "short_name": "Agent",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#2563eb",
+  "icons": []
+}

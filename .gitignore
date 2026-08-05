@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Node（未来 PWA 框架构建产物）
+node_modules/
+dist/
+
+# 环境与密钥
+.env
+*.pem
+*.key
+
+# 运行日志
+logs/
+*.log
+
+# 沙箱测试产物
+.sandbox_demo/
+
+# 系统
+.DS_Store
+Thumbs.db
