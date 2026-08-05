@@ -193,7 +193,8 @@ async def run_demo(host: str, port: int, code: str, sandbox: Path) -> None:
         term = await client.wait_terminal(job_id)
         check(term["status"] == "done", f"任务终态 status={term['status']}")
         reply = (term.get("result") or {}).get("reply", "")
-        check("未识别的指令" in reply, f"返回提示回复: {reply!r}")
+        # 规则路径返回「未识别的指令…」，LLM 路径返回自然语言提示；两条路径都应给出非空回复
+        check(bool(reply), f"返回提示回复: {reply!r}")
 
         # ---------- 场景4：1h 信任 ----------
         print("\n场景4 1h 信任：批准(1h) 后再次发同指令 -> 不再弹审批，直接执行")

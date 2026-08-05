@@ -95,7 +95,7 @@ class JobManager:
     # ---- 内部流程 ----
     async def _process(self, job: Job) -> None:
         await self._set_status(job,STATUS_PARSING)
-        plan = planner.plan_command(job.text)
+        plan = await planner.plan_command(job.text)
         if plan.is_help or (plan.reply and plan.tool_name is None):
             job.result = {"reply": plan.reply}
             await self._set_status(job,STATUS_DONE)

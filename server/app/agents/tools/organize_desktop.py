@@ -11,6 +11,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from ... import config
 from .base import ActionDetail, RiskLevel, Tool, ToolResult
 
 CATEGORY_DIRS: dict[str, set[str]] = {
@@ -40,14 +41,14 @@ class OrganizeDesktopTool(Tool):
     args_schema = {
         "type": "object",
         "properties": {
-            "directory": {"type": "string", "description": "要整理的目录"},
+            "directory": {"type": "string", "description": "要整理的目录；省略时默认整理桌面目录"},
             "mode": {"type": "string", "enum": ["type"], "description": "归档方式，默认按类型"},
         },
-        "required": ["directory"],
+        "required": [],
     }
 
     def plan(self, args: dict) -> ActionDetail:
-        directory = Path(args.get("directory") or ".").expanduser()
+        directory = Path(args.get("directory") or config.DESKTOP_DIR).expanduser()
         if not directory.is_dir():
             raise ValueError(f"目录不存在: {directory}")
         movable = self._collect(directory)
@@ -68,7 +69,7 @@ class OrganizeDesktopTool(Tool):
         )
 
     def run(self, args: dict) -> ToolResult:
-        directory = Path(args.get("directory") or ".").expanduser()
+        directory = Path(args.get("directory") or config.DESKTOP_DIR).expanduser()
         if not directory.is_dir():
             return ToolResult(ok=False, message=f"目录不存在: {directory}")
         movable = self._collect(directory)

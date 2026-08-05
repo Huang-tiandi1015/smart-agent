@@ -1,7 +1,8 @@
-"""规则解析：把手机端自然语言指令映射为具体工具调用。
+"""指令解析：把手机端自然语言指令映射为具体工具调用。
 
-里程碑 2 用关键词规则；里程碑 3 将替换为 Claude API 意图解析，
-本模块保持 plan_command 接口不变，上层无需改动。
+里程碑 2 用关键词规则；里程碑 3 引入 LLM 意图解析（OpenAI 兼容端点，默认 DeepSeek）
+作为主路径，plan_command 作为门面（异步）：优先走 LLM，不可用/失败回退 rules_plan。
+上层（jobs.py）只需 await planner.plan_command(text)，接口保持稳定。
 """
 from __future__ import annotations
 
@@ -27,7 +28,22 @@ class PlanResult:
     is_help: bool = False
 
 
-def plan_command(text: str) -> PlanResult:
+async def plan_command(text: str) -> PlanResult:
+    """门面：优先走 LLM 意图解析；不可用/失败回退关键词规则。
+
+    - PLANNER_MODE=rules 或未配置 API key -> 直接走规则引擎
+    - LLM 返回 None（SDK 缺失/网络/超时/非法响应）-> 回退规则引擎
+    """
+    if config.PLANNER_MODE == "rules" or not config.DEEPSEEK_API_KEY:
+        return rules_plan(text)
+    from .llm_planner import plan_with_llm  # 惰性导入，避免与 llm_planner 循环依赖
+
+    plan = await plan_with_llm(text)
+    return plan if plan is not None else rules_plan(text)
+
+
+def rules_plan(text: str) -> PlanResult:
+    """关键词规则引擎（里程碑 2 逻辑，作为 LLM 不可用时的回退）。"""
     t = text.strip()
     low = t.lower()
 
