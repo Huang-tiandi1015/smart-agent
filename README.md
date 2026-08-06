@@ -2,7 +2,7 @@
 
 手机端远程向电脑发送指令、电脑端调用 AI 自动执行的智能工具系统。
 
-当前进度：**里程碑 0-4 完成**（通信链路 + 指令执行与审批 + LLM AI 意图解析（默认 DeepSeek）+ 任务持久化与安全强化）。支持「整理桌面文件」等自然语言指令，敏感操作自动弹手机端审批（可取消）；任务/审计/审批信任/token 落 SQLite 重启不丢；危险目录黑名单硬拦截；无 API key 时自动回退关键词规则，服务不中断。
+当前进度：**里程碑 0-5 完成**（通信链路 + 指令执行与审批 + LLM AI 意图解析（默认 DeepSeek）+ 任务持久化与安全强化 + 日志轮转与开机自启）。支持「整理桌面文件」等自然语言指令，敏感操作自动弹手机端审批（可取消）；任务/审计/审批信任/token 落 SQLite 重启不丢；危险目录黑名单硬拦截；无 API key 时自动回退关键词规则；可注册 Windows 登录自启计划任务（pythonw 隐藏窗口后台运行，日志轮转落盘）。
 
 ## 目录结构
 
@@ -24,6 +24,9 @@ smart-agent/
 ├── scripts/milestone2_demo.py   # 里程碑 2 端到端测试（沙箱，指令/审批/1h信任）
 ├── scripts/milestone3_demo.py   # 里程碑 3 端到端测试（沙箱，LLM 意图解析）
 ├── scripts/milestone4_demo.py   # 里程碑 4 端到端测试（沙箱，黑名单/取消/recent）
+├── scripts/run_server.py        # 统一启动入口（前台/开机自启共用，日志落盘）
+├── scripts/install_autostart.py # 注册「Smart Agent」登录自启计划任务
+├── scripts/uninstall_autostart.py # 删除自启计划任务
 ├── pytest.ini               # pytest 配置（asyncio_mode=auto）
 └── docs/architecture.md     # 架构设计文档
 ```
@@ -51,7 +54,8 @@ DEEPSEEK_API_KEY=sk-...   # https://platform.deepseek.com/ 注册充值后创建
 > 端点默认 `https://api.deepseek.com`（OpenAI 兼容，可经 `SMART_AGENT_DEEPSEEK_BASE_URL` 切换）。
 
 ```bash
-.venv/Scripts/python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000
+# 统一启动入口：日志同时输出到控制台与 logs/smart-agent.log（5MB 轮转，保留 3 份）
+.venv/Scripts/python scripts/run_server.py
 ```
 
 1. 启动后在控制台看到 6 位**配对码**。
@@ -98,6 +102,20 @@ SMART_AGENT_DESKTOP_DIR="D:/Claude Code/smart-agent/.sandbox_demo/desktop" \
 ```
 
 > 里程碑 4 起，任务/审计/审批信任/token 持久化到 `data/smart-agent.db`（重启不丢，非终态任务重启后标记为「服务重启，任务中断」），该目录已加入 `.gitignore`。
+
+### 开机自启（可选，Windows 登录时自动后台运行）
+
+```bash
+# 注册「Smart Agent」登录时计划任务（pythonw 隐藏窗口，无需管理员权限）
+.venv/Scripts/python scripts/install_autostart.py
+# 查看 / 立即触发测试
+schtasks /query /tn "Smart Agent"
+schtasks /run /tn "Smart Agent"
+# 卸载
+.venv/Scripts/python scripts/uninstall_autostart.py
+```
+
+> 后台运行无控制台，日志统一落在 `logs/smart-agent.log`；计划任务配置了失败自动重试（1 分钟后重试 3 次）与不限时执行。
 
 ## 支持指令
 
@@ -166,6 +184,8 @@ SMART_AGENT_DESKTOP_DIR="D:/Claude Code/smart-agent/.sandbox_demo/desktop" \
 | `SMART_AGENT_PLANNER` | `auto` | 规划器模式：`auto`（有 key 走 LLM）/ `llm`（强制 LLM）/ `rules`（强制规则） |
 | `SMART_AGENT_DB_PATH` | `data/smart-agent.db` | SQLite 数据库路径（任务/审计/审批信任/token） |
 | `SMART_AGENT_MAX_CONCURRENT` | `3` | 工具执行并发上限（超出排队等待） |
+| `SMART_AGENT_LOG_FILE` | `logs/smart-agent.log` | 日志文件路径（控制台 + 文件轮转双输出，5MB × 3 备份） |
+| `SMART_AGENT_LOG_LEVEL` | `INFO` | 日志级别（DEBUG/INFO/WARNING/ERROR） |
 
 ## REST 接口
 
@@ -180,6 +200,6 @@ SMART_AGENT_DESKTOP_DIR="D:/Claude Code/smart-agent/.sandbox_demo/desktop" \
 - [x] 里程碑 2：任务状态机 + 工具抽象 + 规则指令 + 审批机制
 - [x] 里程碑 3：接入 LLM（DeepSeek）做意图解析（AI 规划器，失败自动回退规则）
 - [x] 里程碑 4：任务持久化 / 恢复（SQLite）、危险目录黑名单硬拦截、token 轮换、取消与并发控制、pytest
-- [ ] 里程碑 5：Windows 开机自启、中继服务器兜底
+- [x] 里程碑 5：Windows 登录自启（计划任务，pythonw 隐藏窗口）+ 日志轮转
 
 详细设计见 [docs/architecture.md](docs/architecture.md)。

@@ -71,6 +71,12 @@ DB_PATH = os.getenv("SMART_AGENT_DB_PATH", str(PROJECT_ROOT / "data" / "smart-ag
 # 工具执行并发上限（超出排队等待）
 MAX_CONCURRENT = int(os.getenv("SMART_AGENT_MAX_CONCURRENT", "3"))
 
+# ---- 里程碑 5：日志 ----
+# 日志文件路径（控制台 + RotatingFileHandler 双输出）
+LOG_FILE = os.getenv("SMART_AGENT_LOG_FILE", str(PROJECT_ROOT / "logs" / "smart-agent.log"))
+# 日志级别（DEBUG/INFO/WARNING/ERROR）
+LOG_LEVEL = os.getenv("SMART_AGENT_LOG_LEVEL", "INFO")
+
 
 def _default_desktop() -> str:
     home = Path.home()

@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import logging
+import logging.handlers
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,9 +22,18 @@ from .core.hub import ConnectionHub
 from .core.jobs import JobManager
 from .core.store import Store
 
+# 日志双输出：控制台（前台调试）+ 文件轮转（后台/开机自启无窗口时也能留痕）
+Path(config.LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, config.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.handlers.RotatingFileHandler(
+            config.LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8",
+        ),
+    ],
+    force=True,
 )
 logger = logging.getLogger("smart-agent")
 
@@ -71,4 +82,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server.app.main:app", host=config.HOST, port=config.PORT, reload=True)
+    # log_config=None：uvicorn 的 access/error 日志冒泡到根 logger（控制台 + 文件轮转）
+    uvicorn.run("server.app.main:app", host=config.HOST, port=config.PORT, log_config=None)

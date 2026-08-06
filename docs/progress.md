@@ -1,8 +1,27 @@
 # 开发进度记录
 
-> 更新：2026-08-05（里程碑 4：任务持久化 + 安全强化 + 取消/并发 + pytest）
+> 更新：2026-08-06（里程碑 5：日志轮转 + 开机自启（计划任务））
 
 ## 当前状态
+
+**里程碑 5（日志轮转 + 开机自启）已完成并全量验证**（中继服务器兜底按用户确认不做）：
+
+- **统一启动入口** `scripts/run_server.py`：前台调试与开机自启共用；`uvicorn.run(log_config=None)`
+  让 uvicorn 的 access/error 日志冒泡到根 logger，统一走 main.py 的双 handler。
+  pythonw 下 `sys.stdout/stderr` 为 None，入口提前兜底为 `io.StringIO`，避免 print/logging 抛错。
+- **日志轮转**：`config.py` 新增 `LOG_FILE` / `LOG_LEVEL`（`SMART_AGENT_LOG_FILE` /
+  `SMART_AGENT_LOG_LEVEL` 可覆盖，默认 `logs/smart-agent.log` / INFO）；`main.py` 日志改为
+  「控制台 StreamHandler + RotatingFileHandler（5MB × 3 备份）」双输出，`Path` 导入已在 main.py 补上。
+- **开机自启**：`scripts/install_autostart.py` 用临时 UTF-16 XML + `schtasks` 注册「Smart Agent」
+  登录时计划任务（pythonw.exe 隐藏窗口跑 run_server.py，显式 WorkingDirectory，
+  RestartOnFailure 失败 1 分钟后重试 3 次，ExecutionTimeLimit 不限时，LeastPrivilege 无需管理员权限）；
+  `scripts/uninstall_autostart.py` 一键删除。
+- **实测结果**（2026-08-06）：
+  - pytest 41 项全绿；前台 `run_server.py` 起服务后日志同时含 app 日志与 uvicorn access 行。
+  - 计划任务实测全流程：`install_autostart.py` 注册 → `schtasks /run` 拉起 → 验证
+    pythonw.exe 进程存活 + 8000 端口监听 + `logs/smart-agent.log` 新增 app 日志与
+    uvicorn access 行 → `GET /api/health` 200 且 access 行落盘 → `taskkill` 结束进程 +
+    `uninstall_autostart.py` 卸载并确认任务已删除，端口释放、无进程残留。
 
 **里程碑 0-1（通信链路）已完成并验证**：配对 → WS 认证 → echo → 心跳，全通过。
 
@@ -82,9 +101,25 @@
 
 ```bash
 cd "D:/Claude Code/smart-agent"
+# 统一入口（前台调试，日志同时落控制台与 logs/smart-agent.log）
+.venv/Scripts/python scripts/run_server.py
+# 或直接 uvicorn（同样走双 handler，但 uvicorn 的 access/error 需手动加参数才会冒泡）
 .venv/Scripts/python -m uvicorn server.app.main:app --host 0.0.0.0 --port 8000
 ```
 配对码打印在控制台，手机访问 `http://<电脑IP>:8000`。防火墙规则已放行 8000 端口。
+
+### 开机自启（里程碑 5）
+
+```bash
+# 安装（注册「Smart Agent」登录时计划任务，pythonw 隐藏窗口后台运行）
+.venv/Scripts/python scripts/install_autostart.py
+# 查看/立即触发测试
+schtasks /query /tn "Smart Agent"
+schtasks /run /tn "Smart Agent"
+# 卸载（删除计划任务）
+.venv/Scripts/python scripts/uninstall_autostart.py
+```
+后台运行无控制台，日志统一落在 `logs/smart-agent.log`（5MB 轮转，保留 3 份备份）。
 
 ## 沙箱测试命令备忘
 
@@ -104,11 +139,12 @@ SMART_AGENT_DESKTOP_DIR="D:/Claude Code/smart-agent/.sandbox_demo/desktop" \
 ```
 `.sandbox_demo/`、`data/` 已加入 .gitignore。
 
-## 下一步（里程碑 5）
+## 下一步（里程碑 5 已完成）
 
-- Windows 开机自启（注册表/计划任务）
-- 中继服务器兜底通道（手机无法装 Tailscale 时）
-- 前端审批交互与状态展示打磨（当前已支持取消）
+- ✅ Windows 开机自启（计划任务，登录时自动后台启动，pythonw 隐藏窗口）
+- ✅ 日志轮转（RotatingFileHandler 5MB × 3）
+- ⏭ 中继服务器兜底通道（手机无法装 Tailscale 时）——用户确认不做
+- 未来可选：前端审批交互与状态展示打磨、HTTPS、更多工具
 
 ## 里程碑 3 待办（已完成）
 
