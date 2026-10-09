@@ -176,7 +176,8 @@ class JobManager:
         job.tool_name = tool.name
         job.args = plan.args
         try:
-            job.action = tool.plan(job.args)
+            # plan 可能做文件扫描等阻塞操作（如 launch_app 查找软件），移到线程避免卡事件循环
+            job.action = await asyncio.to_thread(tool.plan, job.args)
         except Exception as e:  # noqa: BLE001
             job.error = f"规划失败: {e}"
             await self._set_status(job, STATUS_FAILED)

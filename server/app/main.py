@@ -38,7 +38,10 @@ logging.basicConfig(
 logger = logging.getLogger("smart-agent")
 
 store = Store(config.DB_PATH)
-auth = AuthManager(code_ttl=config.PAIR_CODE_TTL, token_ttl=config.TOKEN_TTL, store=store)
+auth = AuthManager(
+    code_ttl=config.PAIR_CODE_TTL, token_ttl=config.TOKEN_TTL, store=store,
+    fixed_code=config.PAIR_CODE_FIXED or None,
+)
 hub = ConnectionHub()
 job_manager = JobManager(hub=hub, approval_ttl=config.APPROVAL_TTL, store=store)
 
@@ -48,8 +51,11 @@ async def lifespan(app: FastAPI):
     # 启动时生成一个配对码，打印到控制台供手机端输入
     code = auth.issue_pair_code()
     logger.info("=" * 56)
-    logger.info("首次配对码: %s  （%d 分钟内有效，最多使用 %d 次）",
-                code, int(config.PAIR_CODE_TTL / 60), 3)
+    if config.PAIR_CODE_FIXED:
+        logger.info("配对码: %s  （固定码，长期有效，不限次数）", code)
+    else:
+        logger.info("首次配对码: %s  （%d 分钟内有效，最多使用 %d 次）",
+                    code, int(config.PAIR_CODE_TTL / 60), 3)
     logger.info("手机端访问 http://<本机地址>:%d 后，在页面输入该配对码完成绑定", config.PORT)
     logger.info("=" * 56)
     # 恢复持久化数据：未过期 token、审批信任、任务历史（非终态标记为中断）

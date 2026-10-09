@@ -17,6 +17,7 @@ _PATH_SEP_RE = re.compile(r"[\\/:]")
 _COMMANDS = [
     "整理桌面文件 —— 把桌面按类型归档（需手机确认）",
     "整理 <目录路径> —— 归档指定目录",
+    "打开 <软件名> —— 启动已安装的软件，如 Steam、微信（需手机确认）",
 ]
 
 
@@ -59,6 +60,11 @@ def rules_plan(text: str) -> PlanResult:
         if "桌面" in text or "desktop" in low:
             return PlanResult(tool_name="organize_desktop", args={"directory": config.DESKTOP_DIR})
 
+    # 打开/启动 <软件>：仅处理「打开X / X打开」这类短指令，长句交给 LLM
+    app = _extract_open_app(t)
+    if app:
+        return PlanResult(tool_name="launch_app", args={"app": app})
+
     return PlanResult(reply="未识别的指令。发送「帮助」查看支持的命令。")
 
 
@@ -77,3 +83,14 @@ def _extract_dir(text: str) -> str | None:
         return None
     t = t.rstrip("，。；,;！!？?")
     return t if _PATH_SEP_RE.search(t) else None
+
+
+def _extract_open_app(text: str) -> str | None:
+    """提取「打开 <软件名>」或「<软件名> 打开」中的软件名；其余形式返回 None。"""
+    t = text.strip().strip("，。；,;！!？? ")
+    for kw in ("打开", "启动"):
+        if t.startswith(kw):
+            return t[len(kw):].strip(" ：:，。；,;！!？?").strip() or None
+        if t.endswith(kw):
+            return t[:-len(kw)].strip(" ：:，。；,;！!？?").strip() or None
+    return None

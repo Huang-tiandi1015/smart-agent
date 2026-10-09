@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass
 
 PAIR_CODE_LEN = 6
+# 固定配对码的最大使用次数（实际视为不限）
+_UNLIMITED = 2**31 - 1
 
 
 @dataclass
@@ -30,25 +32,44 @@ class Token:
 
 
 class AuthManager:
-    def __init__(self, code_ttl: float, token_ttl: int, store=None) -> None:
+    def __init__(self, code_ttl: float, token_ttl: int, store=None, fixed_code: str | None = None) -> None:
         self._code_ttl = code_ttl
         self._token_ttl = token_ttl
         self._store = store
+        self._fixed_code = fixed_code
         self._pair_codes: dict[str, PairCode] = {}
         self._tokens: dict[str, Token] = {}
 
     def issue_pair_code(self) -> str:
-        """生成一个新的配对码。"""
+        """生成配对码；若配置了固定码则始终返回它（永不过期、不限次数）。"""
         self._cleanup()
+        if self._fixed_code:
+            self._pair_codes[self._fixed_code] = PairCode(
+                code=self._fixed_code, expires_at=0, max_uses=_UNLIMITED,
+            )
+            return self._fixed_code
         code = "".join(secrets.choice("0123456789") for _ in range(PAIR_CODE_LEN))
         self._pair_codes[code] = PairCode(code=code, expires_at=time.time() + self._code_ttl)
         return code
+
+    def current_pair_code(self) -> tuple[str, float]:
+        """返回当前仍可用的配对码及其过期时间；无有效码则新生成一个。
+
+        expires_at=0 表示永不过期（固定码）。供已绑定设备在手机端查看/续码。
+        """
+        self._cleanup()
+        now = time.time()
+        for pc in reversed(list(self._pair_codes.values())):
+            if pc.used < pc.max_uses and (pc.expires_at == 0 or now < pc.expires_at):
+                return pc.code, pc.expires_at
+        code = self.issue_pair_code()
+        return code, self._pair_codes[code].expires_at
 
     def exchange(self, code: str, device_id: str) -> Token | None:
         """用配对码换取 token；失败（无效/过期/次数用尽）返回 None。"""
         self._cleanup()
         pc = self._pair_codes.get(code.strip())
-        if pc is None or time.time() > pc.expires_at:
+        if pc is None or (pc.expires_at and time.time() > pc.expires_at):
             return None
         pc.used += 1
         if pc.used >= pc.max_uses:
@@ -111,7 +132,8 @@ class AuthManager:
 
     def _cleanup(self) -> None:
         now = time.time()
-        for c in [c for c, pc in self._pair_codes.items() if now > pc.expires_at]:
+        # expires_at=0 表示永不过期（固定码），不清理
+        for c in [c for c, pc in self._pair_codes.items() if pc.expires_at and now > pc.expires_at]:
             del self._pair_codes[c]
         for t in [
             t for t, tok in self._tokens.items() if tok.expires_at and now > tok.expires_at

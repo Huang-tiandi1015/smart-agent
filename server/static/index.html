@@ -4,74 +4,117 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="手机远程控制电脑：发送自然语言指令，敏感操作手机端审批">
   <title>Smart Agent</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <h1>Smart Agent</h1>
-    <span id="status" class="status status--offline">未连接</span>
+    <div class="brand">
+      <span class="brand-logo">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="#fff" d="M13.2 2 5 13.2h4.1L7.9 22l9.3-11.5h-4.2z"/>
+        </svg>
+      </span>
+      <h1>Smart Agent</h1>
+    </div>
+    <span id="status" class="status status--offline">
+      <i class="dot"></i><span id="statusText">未连接</span>
+    </span>
   </header>
 
   <main class="panel">
-    <!-- 连接配置 -->
-    <section class="card">
-      <h2>连接</h2>
+    <!-- 配对 -->
+    <section class="card" id="pairCard">
+      <div class="card-title">连接电脑</div>
       <div class="row">
-        <label>服务器地址</label>
+        <label>服务器</label>
         <input id="server" readonly>
       </div>
       <div class="row">
         <label>设备名</label>
         <input id="deviceName" placeholder="例如 我的手机" maxlength="24">
       </div>
-    </section>
-
-    <!-- 配对 -->
-    <section class="card" id="pairCard">
-      <h2>配对</h2>
-      <p class="hint">在电脑端控制台查看配对码，输入后完成绑定。</p>
       <div class="row">
         <label>配对码</label>
-        <input id="pairCode" inputmode="numeric" placeholder="6 位数字" maxlength="6">
+        <input id="pairCode" inputmode="numeric" placeholder="6 位数字" maxlength="6" autocomplete="one-time-code">
       </div>
       <button id="btnBind" class="btn btn--primary">绑定</button>
+      <p class="hint">配对码在电脑端控制台或 logs/smart-agent.log 查看；绑定后可在「指令」页随时查看</p>
     </section>
 
     <!-- 指令 -->
     <section class="card" id="cmdCard" hidden>
-      <h2>指令</h2>
-      <div class="row">
-        <input id="cmdInput" placeholder="例如：整理桌面文件">
-        <button id="btnSend" class="btn btn--primary">发送</button>
+      <div class="card-title">指令</div>
+      <div class="chips" id="quickChips"></div>
+      <div class="row send-row">
+        <input id="cmdInput" placeholder="说点什么，例如：打开 Steam" autocomplete="off" enterkeyhint="send">
+        <button id="btnSend" class="btn btn--primary btn--send">发送</button>
       </div>
-      <p class="hint">支持：整理桌面文件 / 整理 &lt;目录路径&gt;。发送「帮助」查看全部。</p>
-      <button id="btnUnbind" class="btn btn--danger">解除绑定</button>
+      <div id="historyBox" hidden>
+        <div class="card-title card-title--sub">
+          <span>最近指令</span>
+          <button id="btnClearHistory" class="link">清空</button>
+        </div>
+        <div class="chips" id="historyChips"></div>
+      </div>
+      <div class="action-row">
+        <button id="btnShowCode" class="btn btn--link">查看配对码</button>
+        <button id="btnUnbind" class="btn btn--link">解除绑定</button>
+      </div>
     </section>
 
     <!-- 任务记录 -->
     <section class="card" id="logCard" hidden>
-      <h2>任务记录</h2>
-      <ul id="log" class="log"></ul>
+      <div class="card-title card-title--row">
+        <span>任务记录</span>
+        <span id="taskCount" class="badge-count">0</span>
+      </div>
+      <ul id="taskList" class="tasks"></ul>
+      <button id="btnClear" class="btn btn--link" hidden>清空记录</button>
     </section>
   </main>
 
+  <!-- Toast -->
+  <div id="toastBox" class="toast-box" aria-live="polite"></div>
+
   <!-- 审批弹窗 -->
   <div id="approvalModal" class="modal" hidden>
-    <div class="modal-box">
-      <h2>需你确认</h2>
+    <div class="modal-box" data-risk="sensitive">
+      <div class="ap-header">
+        <h2>需你确认</h2>
+        <span id="apRiskTag" class="risk-tag">敏感操作</span>
+      </div>
       <p id="apText" class="ap-text"></p>
       <p id="apSummary" class="ap-summary"></p>
       <ul id="apDetails" class="ap-details"></ul>
-      <div class="ap-trust">
+      <div class="ap-trust" id="apTrust">
         <label><input type="radio" name="trust" value="once" checked> 仅本次</label>
         <label><input type="radio" name="trust" value="1h"> 1 小时内信任</label>
       </div>
+      <p class="ap-timeout">超过 10 分钟未确认将自动拒绝</p>
       <div class="ap-buttons">
-        <button id="apCancel" class="btn">取消</button>
+        <button id="apCancel" class="btn btn--ghost">取消</button>
         <button id="apDeny" class="btn btn--danger">拒绝</button>
         <button id="apApprove" class="btn btn--primary">批准执行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 配对码弹窗 -->
+  <div id="codeModal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="ap-header"><h2>当前配对码</h2></div>
+      <p id="codeLabel" class="code-label">用于新设备绑定，请尽快输入</p>
+      <p id="codeDisplay" class="code-display">000000</p>
+      <p id="codeExpiry" class="code-expiry"></p>
+      <div class="ap-buttons">
+        <button id="codeClose" class="btn btn--primary">好的</button>
       </div>
     </div>
   </div>

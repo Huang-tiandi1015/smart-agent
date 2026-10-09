@@ -1,8 +1,55 @@
 # 开发进度记录
 
-> 更新：2026-08-06（里程碑 5：日志轮转 + 开机自启（计划任务））
+> 更新：2026-08-18（新增固定配对码 + 手机端查看）
 
 ## 当前状态
+
+**固定配对码（2026-08-18）**：
+
+- 配置项 `SMART_AGENT_PAIR_CODE`（`.env`）：设置后始终用该码，永不过期、不限次数；留空则恢复「启动随机生成 + 10 分钟有效」。
+- `AuthManager` 增加 `fixed_code` 参数；`issue_pair_code`/`exchange`/`current_pair_code`/`_cleanup` 兼容
+  `expires_at=0`（永不过期）语义；`/api/pair-code` 响应加 `fixed` 字段。
+- 前端弹窗区分固定码（「长期有效，不限次数」）与临时码（倒计时）；配对页提示文案通用化；sw.js 缓存升 v4。
+- 已在 `.env` 启用固定码（值见本地 `.env`，不入库）。
+- 验证：pytest 66 项全绿（新增固定码 4 项）；E2E：同一固定码连续配对多次成功、`/api/pair-code` 返回
+  `{"code":"******","expires_in":0,"fixed":true}`、启动日志显示「固定码，长期有效，不限次数」。
+
+## 当前状态（旧）
+
+**手机端可查看配对码（2026-08-18）**：
+
+- 后端：`AuthManager.current_pair_code()`（返回当前仍有效配对码，无则新生成）+ `GET /api/pair-code`（需 Bearer token，
+  未认证 401）。安全设计：**首次配对仍需电脑端看码**；绑定后的设备可在「指令」页随时查看/刷新新码，供新设备绑定。
+- 前端：指令卡新增「查看配对码」按钮 + 大号数字弹窗（显示码 + 剩余有效期 + 最多 3 次）；配对页提示文案更新。
+- sw.js 缓存升 v3（否则手机 PWA 会继续用缓存的旧外壳）。
+- 验证：pytest 62 项全绿（新增 `test_auth.py` 4 项）；E2E：配对→带 token 查码 200 返回当前码、无/假 token 均 401；
+  静态文件 /、style.css、app.js、sw.js 均 200 且含新元素。
+
+## 当前状态（旧）
+
+**手机端页面全面优化**（2026-08-12，纯静态改造，后端不动）：
+
+- **视觉**：CSS 变量 + 系统暗色模式（`prefers-color-scheme`）、渐变品牌顶栏、卡片阴影圆角、动效（状态脉冲/卡片入场/弹窗弹出）
+- **交互**：任务记录从纯文本日志改为**结构化任务卡片**（状态徽标 + 指令 + 时间，点击展开详情，到达终态自动展开）；快捷指令 chips（整理桌面/打开 Steam/帮助）；发送按钮随连接状态禁用
+- **功能**：指令历史（localStorage 最近 8 条，点击重发，可清空）；Toast 瞬时提示（连接/配对/审批/错误）；审批弹窗按 risk 着色（safe 蓝/sensitive 琥珀/dangerous 红），dangerous 隐藏 1h 信任选项；清空任务记录
+- **PWA**：新增 `scripts/gen_icons.py`（纯 stdlib 手写 PNG，蓝渐变圆角方块+白色闪电，4x4 超采样抗锯齿），生成 `server/static/icons/`（180/192/512 + maskable-512）；manifest 补 description/id/orientation/icons；sw.js 缓存升 v2
+- 验证：pytest 58 项全绿；静态文件 /、style.css、app.js、manifest.json、sw.js、4 个图标全部 200；JS 引用的 29 个 DOM ID 与 HTML 一一对应
+- 注：手机需刷新页面（或重新打开）拉取 sw v2 新外壳
+
+**新工具 `launch_app`（打开应用）已加入并验证**（2026-08-12）：
+
+- `server/app/agents/tools/launch_app.py`：按名称解析已安装软件的可启动目标
+  （开始菜单快捷方式 .lnk → 常见安装目录 .exe → PATH 兜底），精确/前缀/词级/子串分级匹配，
+  找不到明确报错；`RiskLevel.SENSITIVE` 需手机审批；.lnk 用 `os.startfile` 交给 Windows 解析，exe 用 subprocess 启动。
+  带 `_RESOLVE_CACHE` 命中缓存（上限 512 条），避免每次重复扫描 Program Files。
+- 注册进 `registry.py`，LLM 规划器自动生成 function definition，手机发「打开 Steam」「启动微信」即可触发。
+- 规则回退 `planner.py` 支持「打开X / X打开 / 启动X」短指令；帮助列表新增「打开 <软件名>」。
+- `jobs.py` 的 `tool.plan` 改为 `asyncio.to_thread` 执行（launch_app 会扫描文件系统，避免阻塞事件循环）。
+- 新增 `server/tests/test_launch_app.py` 17 项（解析分级/计划明细/启动调用/启动失败/规则回退），pytest 58 项全绿。
+- 真实环境验证：`resolve_app("steam")` 命中
+  `...Start Menu\Programs\Steam\Steam.lnk`；服务重启后健康检查通过。
+
+## 当前状态（里程碑 5）
 
 **里程碑 5（日志轮转 + 开机自启）已完成并全量验证**（中继服务器兜底按用户确认不做）：
 

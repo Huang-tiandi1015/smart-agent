@@ -9,6 +9,7 @@ from typing import Type
 
 from .base import Tool
 from .organize_desktop import OrganizeDesktopTool
+from .launch_app import LaunchAppTool
 
 _REGISTRY: dict[str, Type[Tool]] = {}
 
@@ -31,3 +32,4 @@ def tool_names() -> list[str]:
 
 
 register(OrganizeDesktopTool)
+register(LaunchAppTool)

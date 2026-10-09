@@ -42,6 +42,8 @@ PORT = int(os.getenv("SMART_AGENT_PORT", "8000"))
 
 # 配对码有效期（秒）
 PAIR_CODE_TTL = int(os.getenv("SMART_AGENT_PAIR_TTL", "600"))
+# 固定配对码（可选）：设置后始终使用该码，永不过期、不限次数；留空则每次启动随机生成
+PAIR_CODE_FIXED = os.getenv("SMART_AGENT_PAIR_CODE", "")
 # token 有效期（秒），0 表示永不过期
 TOKEN_TTL = int(os.getenv("SMART_AGENT_TOKEN_TTL", str(30 * 24 * 3600)))
 

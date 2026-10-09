@@ -1,8 +1,16 @@
 /* 极简 Service Worker：缓存应用外壳，离线时也能打开页面。
  * MVP 阶段不强缓存 API/WS，避免调试困惑。
  */
-const CACHE = "smart-agent-v1";
-const SHELL = ["/", "/index.html", "/style.css", "/app.js"];
+const CACHE = "smart-agent-v4";
+const SHELL = [
+  "/",
+  "/index.html",
+  "/style.css",
+  "/app.js",
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
